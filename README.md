@@ -1,2 +1,8 @@
 # 🔥 FireGuard360
-Sistema di rilevamento di incendi per strutture situate in aeree a rischio
+Fire detection system for structures located in risk areas
+
+## Dashboard FireGuard360
+
+URL for dashboardFireGuard360 repository:
+
+https://github.com/osvaldomar144/dashboard_FireGuard360
