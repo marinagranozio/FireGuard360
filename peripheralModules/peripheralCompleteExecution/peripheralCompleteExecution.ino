@@ -7,17 +7,15 @@
 #define MQ2_A0  A7
 #define LEDR    4
 #define DHTTYPE DHT22
-const char* DEVICE_NAME = "server1";
 
 // UUIDs
-const char* UUID_SERVICE         = "19b10000-e8f2-537e-4f6c-d104768a1214";
-const char* UUID_DATA            = "19b10001-e8f2-537e-4f6c-d104768a1215";
+const char* nomeDevice = "server1";
+const char* UuidService = "19b10000-e8f2-537e-4f6c-d104768a1214";
+const char* UuidCharacteristic = "19b10001-e8f2-537e-4f6c-d104768a1215";
 
-// ------------------ BLE Characteristics ------------------
-BLEService dangerService(UUID_SERVICE);
-
-// Caratteristica per inviare il JSON con tutti i dati
-BLEStringCharacteristic dataCharacteristic(UUID_DATA, BLERead | BLENotify, 100);
+// --------- BLE Service and Characteristics ----------
+BLEService bluetoothService(UuidService);  // UUID del servizio
+BLECharacteristic bluetoothCharacteristic(UuidCharacteristic, BLERead, 50);
 
 // ----------------------- VARIABILI -----------------------
 DHT dht(DHT_PIN, DHTTYPE);
@@ -39,7 +37,7 @@ void setup() {
   pinMode(MQ2_PIN, INPUT);
   pinMode(LEDR, OUTPUT);
 
-  setupBLE();
+  setup_BLE();
 
   delay(2000);
 }
@@ -49,7 +47,7 @@ void loop() {
   getSensorData();
   logValues();
   ledBlink();
-  handleBLEConnection();
+  BLE_Update_Values();
 }
 
 // ---------------------- SENSOR -----------------------
@@ -80,65 +78,57 @@ void logValues() {
 }
 
 // ------------------------ BLE ------------------------
-void setupBLE() {
+void setup_BLE(){
   if (!BLE.begin()) {
-    Serial.println("BLE init failed!");
+    Serial.println("Errore nell'inizializzare BLE");
     while (1);
   }
 
-  BLE.setDeviceName(DEVICE_NAME);
-  BLE.setLocalName(DEVICE_NAME);
-  BLE.setAdvertisedService(dangerService);
+  BLE.setDeviceName(nomeDevice);
+  BLE.setLocalName(nomeDevice);
 
-  // Aggiunta della caratteristica per i dati
-  dangerService.addCharacteristic(dataCharacteristic);
-
-  BLE.addService(dangerService);
-
-  dataCharacteristic.writeValue(""); // Inizializzazione della caratteristica
+  bluetoothService.addCharacteristic(bluetoothCharacteristic);
+  
+  BLE.addService(bluetoothService);
+  BLE.setAdvertisedService(bluetoothService);
+  delay(100);
+ 
+  bluetoothCharacteristic.writeValue("Init");
+  delay(100);
 
   BLE.advertise();
-  Serial.println("BLE advertising started");
+ 
+  Serial.println("Advertising started");
 }
 
-void handleBLEConnection() {
+void BLE_Update_Values(){
   BLEDevice central = BLE.central();
+ 
+  if(central){
 
-  if (central) {
-    Serial.print("Connected to central: ");
+    Serial.print("Connesso al dispositivo centrale: ");
     Serial.println(central.address());
-
-    while (central.connected()) {
-      checkAndResetDangerLevel();
-      updateSensorData();  // Invia i dati in JSON
+    
+    while(central.connected()){ 
+      updateSensorData();
       delay(1000);
     }
 
-    Serial.println("Central disconnected");
+  }else{
+    Serial.print("Il centrale ");
+    Serial.print(central.address());
+    Serial.println(" non è connesso");
   }
-}
-
-void checkAndResetDangerLevel() {
-  // Se il flag reset è attivo, resetta il valore di pericolo
-  if (resetFlag) {
-    dangerValue = 0;
-    dangerValueChanged = false;
-    resetFlag = false;
-    Serial.println("Danger reset from central");
-  } else if (!dangerValueChanged) {
-    // Calcola e aggiorna il livello di pericolo
-    dangerValue = computeDangerValue();
-    dangerValueChanged = true;
-  }
+  delay(1000);
 }
 
 void updateSensorData() {
   // Creazione del JSON con i dati dei sensori
-  String jsonData = buildSensorJSON();
+  String sensorData = buildSensorCompact();
 
   // Invia il JSON alla caratteristica BLE
-  dataCharacteristic.writeValue(jsonData);
-  Serial.println("Sent JSON to central: " + jsonData);
+  bluetoothCharacteristic.writeValue((const uint8_t*)sensorData.c_str(), sensorData.length());
+  Serial.println("Sent JSON to central: " + sensorData);
 }
 
 // ------------------------ UTILS ------------------------
@@ -157,16 +147,12 @@ void ledBlink() {
   digitalWrite(LEDR, HIGH);
 }
 
-String buildSensorJSON() {
+String buildSensorCompact() {
+  String compact = "T" + String((int)t);
+  compact += "H" + String((int)h);
+  compact += "G" + String((int)(gasLevel * 100));
+  compact += "D" + String(computeDangerValue());
 
-  String json = "{";
-  json += "\"t\":" + String(t, 1) + ",";
-  json += "\"h\":" + String(h, 1) + ",";
-  json += "\"gas\":" + String(gasLevel, 2) + ",";
-  json += "\"danger\":" + String(dangerValue);
-  json += "}";
-
-  Serial.println("JSON created: " + json);
-
-  return json;
+  return compact;
 }
+
