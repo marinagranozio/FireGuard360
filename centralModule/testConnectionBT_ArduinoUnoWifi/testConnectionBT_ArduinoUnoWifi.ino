@@ -31,8 +31,8 @@ void loop() {
         delay(100);
         Serial.println("[OK] Disconnect...");
         Serial.println("---------------------------------");
+        delay(300);
         server_device[i].disconnect();
-        delay(200);
       }else{
         Serial.print("Provo a connettermi a: ");
         Serial.println(nome_device[i]);
@@ -84,11 +84,11 @@ void bluetooth_setup(){
 void handle_device(BLEDevice device){
   if(device.connected()){
 
-    const int maxTentativi = 20;
+    const int maxTentativi = 25;
     int tentativi = 0;
 
     while (!device.discoverAttributes() and (tentativi < maxTentativi)) {
-      delay(300);
+      delay(200);
       tentativi++;
     }
 
@@ -102,7 +102,7 @@ void handle_device(BLEDevice device){
         caratteristica = servizio.characteristic(UuidCharacteristic);
         if (caratteristica) break;
       }
-      delay(500);
+      delay(200);
       tentativi++;
     }
 
@@ -113,8 +113,10 @@ void handle_device(BLEDevice device){
 
     Serial.println("[OK] Servizio e caratteristica trovati!");
 
-    char buffer[33];
+    char buffer[51];
     int len = caratteristica.readValue(buffer, sizeof(buffer) - 1);
+    Serial.print("[INFO] lunghezza: ");
+    Serial.println(len);
     if (len > 0) {
       buffer[len] = '\0';
       Serial.print("[OK] Dati ottenuti: ");
