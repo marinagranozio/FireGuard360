@@ -19,7 +19,7 @@ BLECharacteristic bluetoothCharacteristic(UuidCharacteristic, BLERead, 50);
 
 // ----------------------- VARIABILI -----------------------
 DHT dht(DHT_PIN, DHTTYPE);
-float t = 0, h = 0, f = 0, hic = 0, hif = 0;
+float t = 0, h = 0, f = 0;
 int   gasState   = 0;
 float gasLevel = 0;
 
@@ -61,26 +61,27 @@ void getSensorData() {
   gasLevel = (float)analogRead(MQ2_A0) / 1024.0 * 5.0;
 
   if (isnan(h) || isnan(t) || isnan(f)) {
-    Serial.println("DHT read failed!");
+    log_system_info("DHT read failed!");
     return;
   }
 
-  hif = dht.computeHeatIndex(f, h);
-  hic = dht.computeHeatIndex(t, h, false);
+  dangerValue = computeDangerValue();
 }
 
 // ------------------------ LOG ------------------------
 void logValues() {
-  Serial.print("Temp: "); Serial.print(t); Serial.print("°C ");
-  Serial.print("Hum: "); Serial.print(h); Serial.print("% ");
-  Serial.print("Gas: "); Serial.print(gasLevel); Serial.print(" V ");
-  Serial.println(gasState == HIGH ? "(No gas)" : "(Gas detected)");
-}
+    log_system_info(String("Temp: ")+ String(t) + String("°C "));
+    log_system_info(String("Hum: ") + String(h) + String("% "));
+    log_system_info(String("Gas: ") + String(gasLevel) + String(" V "));
+    log_system_info(gasState == HIGH ? String("No gas") : String("Gas detected"));
+    log_system_info(String("Danger Value: ") + String(dangerValue));
+    }
+          
 
 // ------------------------ BLE ------------------------
 void setup_BLE(){
   if (!BLE.begin()) {
-    Serial.println("Errore nell'inizializzare BLE");
+    log_system_info("Errore nell'inizializzare BLE");
     while (1);
   }
 
@@ -98,7 +99,7 @@ void setup_BLE(){
 
   BLE.advertise();
  
-  Serial.println("Advertising started");
+  log_system_info("Advertising started");
 }
 
 void BLE_Update_Values(){
@@ -106,8 +107,7 @@ void BLE_Update_Values(){
  
   if(central){
 
-    Serial.print("Connesso al dispositivo centrale: ");
-    Serial.println(central.address());
+    log_system_info("Connesso al dispositivo centrale: " + central.address());
     
     while(central.connected()){ 
       updateSensorData();
@@ -115,9 +115,7 @@ void BLE_Update_Values(){
     }
 
   }else{
-    Serial.print("Il centrale ");
-    Serial.print(central.address());
-    Serial.println(" non è connesso");
+    log_system_info(String("Il centrale") + String(central.address()) + " non è connesso");
   }
   delay(1000);
 }
@@ -128,16 +126,37 @@ void updateSensorData() {
 
   // Invia il JSON alla caratteristica BLE
   bluetoothCharacteristic.writeValue((const uint8_t*)sensorData.c_str(), sensorData.length());
-  Serial.println("Sent JSON to central: " + sensorData);
+  log_sensor_data(sensorData);
 }
 
 // ------------------------ UTILS ------------------------
+float normalizeGas(int gasValue, float minVal = 0, float maxVal = 5) {
+  float norm = (float)(gasValue - minVal) / (maxVal - minVal);
+  norm = constrain(norm, 0.0, 1.0);
+  return norm;
+}
+ 
+float normalizeTemp(float tempC) {
+  if (tempC <= 25) return 0.0;
+  if (tempC >= 60) return 1.0;
+  return (tempC - 25.0) / 35.0;  
+}
+ 
+float normalizeHumidity(float hum) {
+  if (hum >= 60) return 0.0;
+  if (hum <= 20) return 1.0;
+  return (60.0 - hum) / 40.0;
+}
+
 int computeDangerValue() {
   // Da valutare: somma pesata con soglie arbitrarie
-  float tempFactor = constrain(t / 50.0, 0, 1);
-  float humFactor = constrain(h / 100.0, 0, 1);
-  float gasFactor = constrain(gasLevel / 5.0, 0, 1);
-  float combined = (tempFactor + humFactor + gasFactor) / 3.0;
+  float tempFactor = normalizeTemp(t);
+  float temp_weight = 0.3;  //Peso della temperatura 
+  float humFactor = normalizeHumidity(h);
+  float hum_weight = 0.2;  //Peso dell'umidità 
+  float gasFactor = normalizeGas(gasLevel);
+  float gas_weight = 0.5;  //Peso dell'umidità 
+  float combined = (temp_weight*tempFactor + hum_weight*humFactor + gas_weight*gasFactor);  //formula a1 * T + a2 * H + a3 * G
   return (int)(combined * 100);
 }
 
@@ -151,8 +170,16 @@ String buildSensorCompact() {
   String compact = "T" + String((int)t);
   compact += "H" + String((int)h);
   compact += "G" + String((int)(gasLevel * 100));
-  compact += "D" + String(computeDangerValue());
+  compact += "D" + String(dangerValue);
 
   return compact;
+}
+
+void log_system_info(String info){
+  Serial.println("LOG: [" + String(nomeDevice) + "] - " + info);
+}
+
+void log_sensor_data(String info){
+  Serial.println("DATA: [" + String(nomeDevice) + "] - " + info);
 }
 
