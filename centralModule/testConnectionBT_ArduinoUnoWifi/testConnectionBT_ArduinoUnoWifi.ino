@@ -1,4 +1,5 @@
 #include <ArduinoBLE.h>
+#include <ArduinoJson.h>
 
 // ----------------------- CONFIG -----------------------
 
@@ -7,8 +8,13 @@ const char* nome_device[] = {"server1"};
 const char* UuidService = "19b10000-e8f2-537e-4f6c-d104768a1214";
 const char* UuidCharacteristic = "19b10001-e8f2-537e-4f6c-d104768a1215";
 
+#define DANGER_PIN_1  5
+#define DANGER_PIN_2  4
+
 // ----------------------- VARIABLES ---------------------
 const int numero_server = 1;
+int DangerLevel = 0;
+long int token = 0;
  
 BLEDevice server_device[numero_server];
 BLEDevice server_corrente;
@@ -16,7 +22,24 @@ BLEDevice server_corrente;
 // ----------------------- SETUP -------------------------
 void setup() {
   Serial.begin(9600);
+
+  pinMode(DANGER_PIN_1, OUTPUT);
+  pinMode(DANGER_PIN_2, OUTPUT);
+
+  digitalWrite(DANGER_PIN_1, LOW);
+  digitalWrite(DANGER_PIN_2, LOW);
+
   bluetooth_setup();
+}
+
+//--------------------------LOG-----------------------------
+void log_system_info(String info, String nomeDevice = "Centrale"){
+  Serial.println("LOG: [" + nomeDevice + "] - " + info);
+}
+
+void send_sensor_data(String info, String nomeDevice = ""){
+  String json_data = make_json(info, nomeDevice); 
+  Serial.println("DATA:" + json_data);
 }
 
 // ----------------------- LOOP --------------------------
@@ -26,16 +49,15 @@ void loop() {
     if(server_device[i]){
 
       if(server_device[i].connected()){
-        Serial.println("[OK] Connesso!");
-        handle_device(server_device[i]);
+        log_system_info("[OK] Connesso!", String(nome_device[i]));
+        handle_device(server_device[i], nome_device[i]);
         delay(100);
-        Serial.println("[OK] Disconnect...");
-        Serial.println("---------------------------------");
+        log_system_info("[OK] Disconnect...", String(nome_device[i]));
+        log_system_info("---------------------------------");
         delay(300);
         server_device[i].disconnect();
       }else{
-        Serial.print("Provo a connettermi a: ");
-        Serial.println(nome_device[i]);
+        log_system_info("Provo a connettermi a: " + String(nome_device[i]));
         server_device[i].connect();
       }
 
@@ -50,19 +72,18 @@ void loop() {
 void bluetooth_setup(){
 
   while (!BLE.begin()) {
-    Serial.println("Errore nell'inizializzazione del BLE");
+    log_system_info("Errore nell'inizializzazione del BLE");
     delay(500);
   }
 
-  Serial.println("BLE inizializzato");
+  log_system_info("BLE inizializzato");
 
   BLE.setDeviceName("Centrale");
   BLE.setLocalName("Centrale");
 
   for(int i = 0; i < numero_server; i++){
     do{
-      Serial.print("Searching...");
-      Serial.println(nome_device[i]);
+      log_system_info("Searching..." + String(nome_device[i]));
   
       delay(1000);
 
@@ -71,7 +92,7 @@ void bluetooth_setup(){
     } while(!server_corrente);
 
     if(server_corrente) {
-      Serial.println(server_corrente.localName());
+      log_system_info("Trovato", String(server_corrente.localName()));
       server_device[i] = server_corrente;  
     }
   }
@@ -81,7 +102,7 @@ void bluetooth_setup(){
  
  
 
-void handle_device(BLEDevice device){
+void handle_device(BLEDevice device, String nomedev){
   if(device.connected()){
 
     const int maxTentativi = 25;
@@ -107,23 +128,121 @@ void handle_device(BLEDevice device){
     }
 
     if (!servizio || !caratteristica) {
-      Serial.println("[ERROR] Servizio o caratteristica non trovati.");
+      log_system_info("[ERROR] Servizio o caratteristica non trovati.", nomedev);
       return;
     }
 
-    Serial.println("[OK] Servizio e caratteristica trovati!");
+    log_system_info("[OK] Servizio e caratteristica trovati!", nomedev);
 
     char buffer[51];
     int len = caratteristica.readValue(buffer, sizeof(buffer) - 1);
-    Serial.print("[INFO] lunghezza: ");
-    Serial.println(len);
+    log_system_info("[INFO] lunghezza: " + String(len), nomedev);
     if (len > 0) {
       buffer[len] = '\0';
-      Serial.print("[OK] Dati ottenuti: ");
-      Serial.println(buffer);
+      log_system_info("[OK] Dati ottenuti: " + String(buffer), nomedev);
+
+      /*Avendo ottenuto i dati invio tutto al PC e recupero il nuovo DangerLevel*/
+      send_sensor_data(String(buffer));
+      delay(100);
+      get_danger_Level();
+      danger_to_Central();
+
     } else {
-      Serial.println("[ERROR] Lettura dei dati fallita.");
+      log_system_info("[ERROR] Lettura dei dati fallita.", nomedev);
     }
   }
 }
+
+String make_json(String inputString, String nomeDevice)
+{
+  // Estraiamo i valori dalla stringa
+  float t = 0.0;
+  float h = 0.0;
+  float gasLevel = 0.0;
+  int dangerValue = 0;
+  //---------PARSING---------
+  // Prendo i valori numerici dopo ogni lettera
+  if (inputString.indexOf("T") != -1) {
+    t = inputString.substring(inputString.indexOf("T") + 1, inputString.indexOf("H")).toFloat();
+  }
+  if (inputString.indexOf("H") != -1) {
+    h = inputString.substring(inputString.indexOf("H") + 1, inputString.indexOf("G")).toFloat();
+  }
+  if (inputString.indexOf("G") != -1) {
+    gasLevel = inputString.substring(inputString.indexOf("G") + 1, inputString.indexOf("D")).toFloat() / 100.0; // Convertiamo il valore in percentuale
+  }
+  if (inputString.indexOf("D") != -1) {
+    dangerValue = inputString.substring(inputString.indexOf("D") + 1).toInt();
+  }
+
+//----------CREO IL JSON----------
+// Crea un oggetto JSON
+  DynamicJsonDocument doc(1024);
+
+  doc["token"] = token++;
+  // Aggiungi i dati all'interno dell'oggetto "data"
+  JsonObject data = doc.createNestedObject("data");
+  data["name"] = nomeDevice;
+  data["dangerValue"] = dangerValue;
+  data["temperature"] = t;
+  data["humidity"] = h;
+  data["gas"] = gasLevel; 
+
+  // Converto l'oggetto JSON in una stringa
+  String output;
+  serializeJson(doc, output);
+
+  return output;
+
+//{
+	//"token": "<token_generated>",
+	//"data" : 
+	//	{
+	//		"id": number,
+	//		"name": string,
+	//		"dangerValue": number,
+	//		"temperature": number,
+	//		"humidity": number,
+	//		"gas": number,
+	//	}
+//}
+}
+
+void get_danger_Level()
+{
+  //Recupera dal seriale del PC il livello di Danger
+  if(Serial.available()>0){
+    String DangerLevelString = Serial.readStringUntil('D');
+    log_system_info("Ricevuto dal PC livello di Danger: " + DangerLevelString);
+    int string_to_int_danger = DangerLevelString.toInt();
+
+    if(string_to_int_danger < 4 && string_to_int_danger >= 0){
+      DangerLevel = string_to_int_danger;
+      log_system_info("Nuovo livello di Danger: " + String(DangerLevel));
+    }
+    else 
+      log_system_info("Il PC non ha inviato un danger level valido, DangerLevel non modificato");
+
+  }
+  else
+    log_system_info("Il PC non ha comunicato nulla, DangerLevel non modificato.");
+
+
+}
+
+void danger_to_Central()
+{
+  //UTILIZZA I PIN 5 e 4 per inviare il danger level binario
+  if(DangerLevel < 4 && DangerLevel >= 0)
+  {
+    if(DangerLevel == 0){ digitalWrite(DANGER_PIN_1, LOW); digitalWrite(DANGER_PIN_2, LOW); }
+    else if(DangerLevel == 1){digitalWrite(DANGER_PIN_1, LOW); digitalWrite(DANGER_PIN_2, HIGH);}
+    else if(DangerLevel == 2){digitalWrite(DANGER_PIN_1, HIGH); digitalWrite(DANGER_PIN_2, LOW);}
+    else if(DangerLevel == 3){digitalWrite(DANGER_PIN_1, HIGH); digitalWrite(DANGER_PIN_2, HIGH);}
+    log_system_info("Comunico al centrale il livello di pericolo: " + String(DangerLevel));
+  }
+  else
+    log_system_info("DangerLevel out of bounds, non comunico il nuovo livello al centrale");
+}
+
  
