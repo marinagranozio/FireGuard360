@@ -78,7 +78,7 @@ void logValues() {
     log_system_info(String("Temp: ")+ String(t) + String("°C "));
     log_system_info(String("Hum: ") + String(h) + String("% "));
     log_system_info(String("Gas: ") + String(gasLevel) + String("ppm "));
-    log_system_info(gasState == HIGH ? String("No gas") : String("Gas detected"));
+    log_system_info(gasState == HIGH ? String("Gas detected") : String("No gas"));
     log_system_info(String("Danger Value: ") + String(dangerValue));
     }
          
