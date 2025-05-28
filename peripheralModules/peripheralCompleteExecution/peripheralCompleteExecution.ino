@@ -4,7 +4,7 @@
 // ----------------------- CONFIG -----------------------
 #define DHT_PIN 2
 #define MQ2_PIN 3
-#define MQ2_A0  A7
+#define MQ2_A7  A7
 #define LEDR    4
 #define DHTTYPE DHT22
  
@@ -20,8 +20,8 @@ BLECharacteristic bluetoothCharacteristic(UuidCharacteristic, BLERead, 50);
 // ----------------------- VARIABILI -----------------------
 DHT dht(DHT_PIN, DHTTYPE);
 float t = 0, h = 0, f = 0;
-int   gasState   = 0;
-float gasLevel = 0;
+int gasState = 0;
+int gasLevel = 0;
  
 int dangerValue = 0;
 int dangerValueLimit = 30;
@@ -38,13 +38,13 @@ void setup() {
   Serial.begin(9600);
  
   dht.begin();
-  pinMode(MQ2_A0, INPUT);
+  pinMode(MQ2_A7, INPUT);
   pinMode(MQ2_PIN, INPUT);
   pinMode(LEDR, OUTPUT);
  
   setup_BLE();
  
-  delay(2000);
+  delay(10000);
 }
  
 // ----------------------- LOOP -----------------------
@@ -63,7 +63,7 @@ void getSensorData() {
   t = dht.readTemperature();
   f = dht.readTemperature(true);
   gasState = digitalRead(MQ2_PIN);
-  gasLevel = (float)analogRead(MQ2_A0) / 1024.0 * 5.0;
+  gasLevel = analogRead(MQ2_A7);
  
   if (isnan(h) || isnan(t) || isnan(f)) {
     log_system_info("DHT read failed!");
@@ -77,7 +77,7 @@ void getSensorData() {
 void logValues() {
     log_system_info(String("Temp: ")+ String(t) + String("°C "));
     log_system_info(String("Hum: ") + String(h) + String("% "));
-    log_system_info(String("Gas: ") + String(gasLevel) + String(" V "));
+    log_system_info(String("Gas: ") + String(gasLevel) + String("ppm "));
     log_system_info(gasState == HIGH ? String("No gas") : String("Gas detected"));
     log_system_info(String("Danger Value: ") + String(dangerValue));
     }
@@ -206,7 +206,7 @@ String buildSensorCompact() {
 void log_system_info(String info){
   Serial.println("LOG: [" + String(nomeDevice) + "] - " + info);
 }
- 
+
 void log_sensor_data(String info){
   Serial.println("DATA: [" + String(nomeDevice) + "] - " + info);
 }
