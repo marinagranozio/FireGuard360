@@ -5,8 +5,11 @@ from djitellopy import Tello
 from PIL import Image, ImageOps
 
 import sys
-
 import math
+import threading
+
+
+#---------------------------------------------------------------------------------------------------------- VARIABILI GLOBALI
 
 drone = Tello()     #Tello
 
@@ -18,16 +21,28 @@ parameters = cv2.aruco.DetectorParameters()
 
 detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
 
+numero_aruco_base = 5; #numero di aruco da cercare
+
+# Carica il modello con i pesi salvati
+static_path = "/Users/asus/Documents/Università/MAGISTRALE/CPS/Tesina"  #!!!!!!! Da cambiare con il Path assoluto !!!!!
+path_to_image = static_path + "/verifica_incendio.jpg"
+path_to_model = static_path + "/best.pt"
+
+
+model = YOLO(path_to_model)
+
+#---------------------------------------------------------------------------------------------------------- MAIN
+
 
 def __main__(arg):
 
    ##RICERCA E RAGGIUNGIMENTO DELL'ARUCO
 
-    numero = arg          #numero di cui fare la detection
+    numero_target = 1         #numero di cui fare la detection
 
     print("Argomento ricevuto: ")
 
-    print(numero)
+    print(numero_target)
 
     drone.connect()
 
@@ -39,13 +54,55 @@ def __main__(arg):
 
     drone.streamon()    #attivo la telecamera
 
+    
     drone.takeoff()     #alzo il drone in volo
+
+    go_to_position(numero_target)
+ 
+    #avvio il riconoscimento dell'immagine in multithreading
+    take_photo()    #faccio una foto con il drone
+    time.sleep(2)
+    thread = threading.Thread(target=yolo_model_testing)    #verifico la presenza dell'incendio in un test
+    thread.start()     #avvio il secondo processo 
+
+
+    go_home()   #torno a casa nel mentre
+
+    drone.streamoff()
+
+
+
+#---------------------------------------------------------------------------------------------- UTILS
+
+#funzione che fa una foto per il riconoscimento del drone
+def take_photo():
+    print("Faccio una foto all'ambiente per verificare l'incendio")
+    img=leggi_immagine()
+    cv2.imwrite(path_to_image, img)
+
+
+#funzione che riporta il drone a casa
+def go_home():
+    print("Torno a casa")
+    
+    go_to_position(numero_aruco_base)  #torno alla posizione di partenza
+
+    time.sleep(3)
+
+    print("Tornato alla base, atterro")
+    
+    drone.land()
+
+#funzione che muove il drone verso una posizione specifica
+def go_to_position(target_code):
+
+    print("Volo verso la posizione: ", target_code)
 
     trovato = False     #ha trovato aruco?
 
     posizionato = False     #aruco perfettamente centrato?
 
-    arrivato=False
+    arrivato = False
 
     while not trovato:
 
@@ -53,7 +110,7 @@ def __main__(arg):
 
         image=leggi_immagine()
 
-        trovato = is_detected_aruco(numero, image)
+        trovato = is_detected_aruco(target_code, image)
 
         if not trovato:
 
@@ -73,7 +130,7 @@ def __main__(arg):
 
         image=leggi_immagine()
 
-        x_center = is_centered(numero, image)
+        x_center = is_centered(target_code, image)
 
         print(x_center)
 
@@ -101,15 +158,15 @@ def __main__(arg):
 
     soglia = 70 #soglia minima di grandezza dell'aruco
 
-    cm_backward = 0 #Quanto tornare indietro (quanto sono andato avanti, per algoritmo ancora più scrauso)
+    #cm_backward = 0 #Quanto tornare indietro (quanto sono andato avanti, per algoritmo ancora più scrauso)
 
     img=leggi_immagine()
 
-    arucosegment=aruco_segment(img, numero)
+    arucosegment=aruco_segment(img, target_code)
 
     while(arucosegment < soglia): #continua ad andare avanti finchè vede aruco e tale aruco non è abbastanza grande
 
-        if(is_detected_aruco(numero, img)):
+        if(is_detected_aruco(target_code, img)):
 
             #x_center = is_centered(numero, img)
 
@@ -122,7 +179,7 @@ def __main__(arg):
             drone.move_forward(20)
             image=leggi_immagine()
             show_image(image)
-            cm_backward += 20
+            #cm_backward += 20
 
             #elif(x_center>485):
 
@@ -138,42 +195,27 @@ def __main__(arg):
 
         img=leggi_immagine()
 
-        arucosegment=aruco_segment(img, numero)
+        arucosegment=aruco_segment(img, target_code)
 
         show_image(img)
  
  
     print("Arrivato a destinazione")
- 
-    # Carica il modello con i pesi salvati
-    model = YOLO("/Users/martinariccardi/Drone/best.pt")	##CAMBIA CON IL PATH AL MODELLO!!!
-    img=leggi_immagine()
-    cv2.imwrite("immagine.jpg", img)
-    im = Image.open('/Users/martinariccardi/Drone/immagine.jpg')
+
+    time.sleep(1)
+
+def yolo_model_testing():
+    
+    im = Image.open(path_to_image)
     im_invert = ImageOps.invert(im)
-    im_invert.save('/Users/martinariccardi/Drone/immagine.jpg', quality=95)
+    im_invert.save(path_to_image, quality=95)
     # Usa il modello per fare predizioni su un'immagine
-    results = model("/Users/martinariccardi/Drone/immagine.jpg")
+    results = model(path_to_image)
 
     # Stampa i risultati o salvali
     for result in results:
         result.show()
         result.save(filename='result.jpg')
-
-    while(cm_backward!=0):
-
-        cm_backward=cm_backward-20; 
-
-        drone.move_back(20);
- 
-    time.sleep(3)
-
-    print("Tornato indietro")
-
-    drone.land()
-
-    drone.streamoff()
-
 
 #funzione che legge l'immagine dal drone
 
