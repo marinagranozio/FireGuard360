@@ -10,6 +10,11 @@ const char* UuidCharacteristic = "19b10001-e8f2-537e-4f6c-d104768a1215";
  
 #define DANGER_PIN_1  5
 #define DANGER_PIN_2  4
+// Pin per il controllo delle finestre e delle valvole
+#define WINDOW_1_PIN 0
+#define WINDOW_2_PIN 1
+#define GAS_VALVE_PIN 2
+#define WATER_VALVE_PIN 3
  
 // ----------------------- VARIABLES ---------------------
 const int numero_server = 2;
@@ -25,6 +30,11 @@ void setup() {
  
   pinMode(DANGER_PIN_1, OUTPUT);
   pinMode(DANGER_PIN_2, OUTPUT);
+
+  pinMode(WINDOW_1_FEEDBACK_PIN, INPUT);
+  pinMode(WINDOW_2_FEEDBACK_PIN, INPUT);
+  pinMode(GAS_VALVE_FEEDBACK_PIN, INPUT);
+  pinMode(WATER_VALVE_FEEDBACK_PIN, INPUT);
  
   digitalWrite(DANGER_PIN_1, LOW);
   digitalWrite(DANGER_PIN_2, LOW);
@@ -32,14 +42,20 @@ void setup() {
   bluetooth_setup();
 }
  
-//--------------------------LOG-----------------------------
+//-------------------------- LOG & SERIAL COM -----------------------------
 void log_system_info(String info, String nomeDevice = "Centrale"){
   Serial.println("LOG: [" + nomeDevice + "] - " + info);
 }
  
 void send_sensor_data(String info, String nomeDevice = ""){
-  String json_data = make_json(info, nomeDevice);
+  String json_data = make_data_json(info, nomeDevice);
   Serial.println("DATA:" + json_data);
+}
+
+void send_actuation_status(){
+  // Controlla lo stato delle finestre e delle valvole
+  String actuation_json = make_actuation_json();
+  Serial.println("ACTUATION:" + actuation_json);
 }
  
 // ----------------------- LOOP --------------------------
@@ -61,6 +77,7 @@ void loop() {
         server_device[i].connect();
       }
  
+      send_actuation_status();
       delay(3000);
  
     }
@@ -99,8 +116,6 @@ void bluetooth_setup(){
  
   BLE.stopScan();
 }
- 
- 
  
 void handle_device(BLEDevice device, String nomedev){
   if(device.connected()){
@@ -152,14 +167,44 @@ void handle_device(BLEDevice device, String nomedev){
     }
   }
 }
+
+
+//---------------- UTILITY FUNCTIONS ---------------------
+
+String make_actuation_json()
+{
+  // Crea un oggetto JSON
+  DynamicJsonDocument doc(1024);
  
-String make_json(String inputString, String nomeDevice)
+  // Aggiungi i dati all'interno dell'oggetto "data"
+  JsonObject actuation = doc.createNestedObject("actuation");
+ 
+  // Controlla lo stato delle finestre e delle valvole
+  bool window1_status = digitalRead(WINDOW_1_FEEDBACK_PIN);
+  bool window2_status = digitalRead(WINDOW_2_FEEDBACK_PIN);
+  bool gas_valve_status = digitalRead(GAS_VALVE_FEEDBACK_PIN);
+  bool water_valve_status = digitalRead(WATER_VALVE_FEEDBACK_PIN);
+ 
+  actuation["window1"] = window1_status ? "open" : "closed";
+  actuation["window2"] = window2_status ? "open" : "closed";
+  actuation["gasValve"] = gas_valve_status ? "open" : "closed";
+  actuation["waterValve"] = water_valve_status ? "open" : "closed";
+ 
+  // Converto l'oggetto JSON in una stringa
+  String output;
+  serializeJson(doc, output);
+ 
+  return output;
+}
+
+String make_data_json(String inputString, String nomeDevice)
 {
   // Estraiamo i valori dalla stringa
   float t = 0.0;
   float h = 0.0;
   float gasLevel = 0.0;
   int dangerValue = 0;
+
   //---------PARSING---------
   // Prendo i valori numerici dopo ogni lettera
   if (inputString.indexOf("T") != -1) {
@@ -207,7 +252,8 @@ String make_json(String inputString, String nomeDevice)
   //  }
 //}
 }
- 
+
+
 void get_danger_Level()
 {
   //Recupera dal seriale del PC il livello di Danger
