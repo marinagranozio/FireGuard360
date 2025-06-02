@@ -11,11 +11,11 @@ const char* UuidCharacteristic = "19b10001-e8f2-537e-4f6c-d104768a1215";
 #define DANGER_PIN_1  5
 #define DANGER_PIN_2  4
 // Pin per il controllo delle finestre e delle valvole
-#define WINDOW_1_PIN 0
-#define WINDOW_2_PIN 1
-#define GAS_VALVE_PIN 2
-#define WATER_VALVE_PIN 3
- 
+#define WINDOW_1_FEEDBACK_PIN 0
+#define WINDOW_2_FEEDBACK_PIN 1
+#define GAS_VALVE_FEEDBACK_PIN 2
+#define WATER_VALVE_FEEDBACK_PIN 3
+
 // ----------------------- VARIABLES ---------------------
 const int numero_server = 2;
 int DangerLevel = 0;
