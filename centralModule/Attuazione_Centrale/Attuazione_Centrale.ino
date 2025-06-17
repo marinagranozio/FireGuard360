@@ -163,7 +163,7 @@ void attuazione()
     //TODO: COMPLETA CON LE ATTUAZIONI NEI VARI CASI
   if(dangerLevel == 0){actuate_Windows(true); actuate_GasValve(true); actuate_WaterValve(true); } //Tengo aperte finestre, gas, acqua - dangerLevel 0
   else if(dangerLevel == 1){ actuate_Windows(false); actuate_GasValve(true); actuate_WaterValve(true); } //Chiudo finestre, tengo gas e acqua aperti - dangerLevel 1
-  else if(dangerLevel == 2){ actuate_Windows(false); actuate_GasValve(false); actuate_WaterValve(true); } //Chiudo finestre e gas, tengo acqua aperta - dangerLevel 2
-  else if(dangerLevel == 3){ actuate_Windows(false); actuate_GasValve(false); actuate_WaterValve(false); } //Chiudo tutto - dangerLevel 3
+  //else if(dangerLevel == 2){ actuate_Windows(false); actuate_GasValve(false); actuate_WaterValve(true); } //Chiudo finestre e gas, tengo acqua aperta - dangerLevel 2
+  else if(dangerLevel == 3){ actuate_Windows(false); actuate_GasValve(false); actuate_WaterValve(true); } //Chiudo tutto e mantengo l'acqua aperta - dangerLevel 3
 }
  
