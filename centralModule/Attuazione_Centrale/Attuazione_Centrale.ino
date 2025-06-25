@@ -83,8 +83,7 @@ int getDangerValue()
   a = digitalRead(PIN_DANGER_A);
   b = digitalRead(PIN_DANGER_B);
   
-  //int ndangerLevel = a*2+b*1;
-  int ndangerLevel = 0;
+  int ndangerLevel = a*2+b*1;
   Serial.print("Nuovo DangerLevel: ");
   Serial.println(ndangerLevel);
   return ndangerLevel;
