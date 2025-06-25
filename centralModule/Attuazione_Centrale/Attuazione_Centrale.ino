@@ -28,7 +28,7 @@ bool changed = false;   //è cambiato il valore del danger value?
 
 bool windows_open = true; // Stato delle finestre
 bool gas_valve_open = true; // Stato della valvola del gas
-bool water_valve_open = true; // Stato della valvola dell'acqua
+bool water_valve_open = false; // Stato della valvola dell'acqua
 
 //------------- SETUP ------------------
 
@@ -51,6 +51,7 @@ void setup() {
   pinMode(WATER_VALVE_FEEDBACK_PIN, OUTPUT);
  
   digitalWrite(RELAY_WATERVALVE, LOW);
+  digitalWrite(RELAY_GASVALVE, HIGH);
 
 }
 
@@ -82,7 +83,8 @@ int getDangerValue()
   a = digitalRead(PIN_DANGER_A);
   b = digitalRead(PIN_DANGER_B);
   
-  int ndangerLevel = a*2+b*1;
+  //int ndangerLevel = a*2+b*1;
+  int ndangerLevel = 0;
   Serial.print("Nuovo DangerLevel: ");
   Serial.println(ndangerLevel);
   return ndangerLevel;
@@ -161,8 +163,8 @@ void actuate_WaterValve(bool open_valve)
 void attuazione()
 {
     //TODO: COMPLETA CON LE ATTUAZIONI NEI VARI CASI
-  if(dangerLevel == 0){actuate_Windows(true); actuate_GasValve(true); actuate_WaterValve(true); } //Tengo aperte finestre, gas, acqua - dangerLevel 0
-  else if(dangerLevel == 1){ actuate_Windows(false); actuate_GasValve(true); actuate_WaterValve(true); } //Chiudo finestre, tengo gas e acqua aperti - dangerLevel 1
+  if(dangerLevel == 0){actuate_Windows(true); actuate_GasValve(true); actuate_WaterValve(false); } //Tengo aperte finestre, gas, acqua - dangerLevel 0
+  else if(dangerLevel == 1){ actuate_Windows(false); actuate_GasValve(true); actuate_WaterValve(false); } //Chiudo finestre, tengo gas e acqua aperti - dangerLevel 1
   //else if(dangerLevel == 2){ actuate_Windows(false); actuate_GasValve(false); actuate_WaterValve(true); } //Chiudo finestre e gas, tengo acqua aperta - dangerLevel 2
   else if(dangerLevel == 3){ actuate_Windows(false); actuate_GasValve(false); actuate_WaterValve(true); } //Chiudo tutto e mantengo l'acqua aperta - dangerLevel 3
 }
