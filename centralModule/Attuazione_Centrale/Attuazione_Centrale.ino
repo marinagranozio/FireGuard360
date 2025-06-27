@@ -6,8 +6,8 @@
 #define PIN_DANGER_B 5
 
 // Pin per il controllo delle finestre e delle valvole
-#define WINDOW_1_FEEDBACK_PIN 0
-#define WINDOW_2_FEEDBACK_PIN 1
+#define WINDOW_1_FEEDBACK_PIN 6
+#define WINDOW_2_FEEDBACK_PIN 7
 #define GAS_VALVE_FEEDBACK_PIN 2
 #define WATER_VALVE_FEEDBACK_PIN 3
 
