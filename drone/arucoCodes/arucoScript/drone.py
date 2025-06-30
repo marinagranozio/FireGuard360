@@ -37,8 +37,8 @@ model = YOLO(path_to_model)
 def __main__(arg):
 
    ##RICERCA E RAGGIUNGIMENTO DELL'ARUCO
-
-    numero_target = 1         #numero di cui fare la detection
+   #numero_target = 1          #debug
+    numero_target = arg         #numero di cui fare la detection
 
     print("Argomento ricevuto: ")
 
