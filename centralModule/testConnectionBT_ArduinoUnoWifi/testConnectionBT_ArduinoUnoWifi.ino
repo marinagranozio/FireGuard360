@@ -63,8 +63,13 @@ void loop() {
   for(int i = 0; i < numero_server; i++){
  
     if(server_device[i]){
- 
-      if(server_device[i].connected()){
+      int maxtentativi = 5;
+      int tentativi = 0;
+      bool connesso = false;
+
+      while(!connesso && tentativi < maxtentativi){
+        if(server_device[i].connected()){
+          connesso = true;
         log_system_info("[OK] Connesso!", String(nome_device[i]));
         handle_device(server_device[i], nome_device[i]);
         delay(100);
@@ -76,6 +81,10 @@ void loop() {
         log_system_info("Provo a connettermi a: " + String(nome_device[i]));
         server_device[i].connect();
       }
+      tentativi++;
+      }
+
+      connesso = false;
  
       send_actuation_status();
       delay(3000);
