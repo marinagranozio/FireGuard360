@@ -38,7 +38,7 @@ def __main__(arg):
    if(int(arg) < 5 and int(arg) > 0):
       ##RICERCA E RAGGIUNGIMENTO DELL'ARUCO
       #numero_target = 1          #debug
-       numero_target = arg         #numero di cui fare la detection
+       numero_target = int(arg)         #numero di cui fare la detection
    
        print("Argomento ricevuto: ")
    
