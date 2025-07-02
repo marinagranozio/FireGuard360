@@ -211,6 +211,11 @@ def yolo_model_testing():
     im_invert.save(path_to_image, quality=95)
     # Usa il modello per fare predizioni su un'immagine
     results = model(path_to_image)
+    result = results[0]
+    if len(result.boxes) > 0:
+        print("Incendio rilevato: True")
+    else:
+        print("Incendio rilevato: False")
 
     # Stampa i risultati o salvali
     for result in results:
@@ -303,5 +308,8 @@ def aruco_segment(image, numero):
 
 if __name__ == "__main__":
 
-    __main__(1)
+    if len(sys.argv) > 1:
+        __main__(sys.argv[1])
+    else:
+        __main__(None)  # o un valore di default
  
