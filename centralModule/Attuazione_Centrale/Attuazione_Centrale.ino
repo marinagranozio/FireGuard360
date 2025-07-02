@@ -11,6 +11,11 @@
 #define GAS_VALVE_FEEDBACK_PIN 2
 #define WATER_VALVE_FEEDBACK_PIN 3
 
+#define WINDOW_1_FEEDBACK_PIN_IN 8
+#define WINDOW_2_FEEDBACK_PIN_IN 11
+#define GAS_VALVE_FEEDBACK_PIN_IN A0
+#define WATER_VALVE_FEEDBACK_PIN_IN A1
+
 #define RELAY_WATERVALVE 13        // Relè per la pompa dell'acqua
 #define RELAY_GASVALVE 12        // Relè per la valvola del gas
 
@@ -45,14 +50,23 @@ void setup() {
   pinMode(PIN_DANGER_A, INPUT);
   pinMode(PIN_DANGER_B, INPUT);
 
+  pinMode(WINDOW_1_FEEDBACK_PIN_IN, INPUT);
+  pinMode(WINDOW_2_FEEDBACK_PIN_IN, INPUT);
+  pinMode(GAS_VALVE_FEEDBACK_PIN_IN, INPUT);
+  pinMode(WATER_VALVE_FEEDBACK_PIN_IN, INPUT);
+
   pinMode(WINDOW_1_FEEDBACK_PIN, OUTPUT);
   pinMode(WINDOW_2_FEEDBACK_PIN, OUTPUT);
   pinMode(GAS_VALVE_FEEDBACK_PIN, OUTPUT);
   pinMode(WATER_VALVE_FEEDBACK_PIN, OUTPUT);
+
+  digitalWrite(WINDOW_1_FEEDBACK_PIN, HIGH); 
+  digitalWrite(WINDOW_2_FEEDBACK_PIN, HIGH);
+  digitalWrite(GAS_VALVE_FEEDBACK_PIN, HIGH);
+  digitalWrite(WATER_VALVE_FEEDBACK_PIN, LOW);
  
   digitalWrite(RELAY_WATERVALVE, LOW);
   digitalWrite(RELAY_GASVALVE, HIGH);
-
 }
 
 //--------------- LOOP ----------------
@@ -70,6 +84,22 @@ void loop() {
     attuazione();
  }
    delay(1000);
+  
+  if(dangerLevel==0) {
+    bool feedbackW1=(digitalRead(WINDOW_1_FEEDBACK_PIN_IN)==HIGH);
+    bool feedbackW2=(digitalRead(WINDOW_2_FEEDBACK_PIN_IN)==HIGH);  
+    bool feedbackGas=(digitalRead(GAS_VALVE_FEEDBACK_PIN_IN)==HIGH); 
+    bool feedbackWater=(digitalRead(WATER_VALVE_FEEDBACK_PIN_IN)==HIGH); 
+    if(feedbackW1!=windows_open||feedbackW2!=windows_open) {
+      actuate_Windows(feedbackW1); 
+    }
+    if(feedbackGas!=gas_valve_open) {
+      actuate_GasValve(feedbackGas); 
+    }
+    if(feedbackWater!=water_valve_open) {
+      actuate_WaterValve(feedbackWater); 
+    }
+  }
 }
 
 //------------------ UTILS -----------------
@@ -164,7 +194,6 @@ void attuazione()
     //TODO: COMPLETA CON LE ATTUAZIONI NEI VARI CASI
   if(dangerLevel == 0){actuate_Windows(true); actuate_GasValve(true); actuate_WaterValve(false); } //Tengo aperte finestre, gas, acqua - dangerLevel 0
   else if(dangerLevel == 1){ actuate_Windows(false); actuate_GasValve(true); actuate_WaterValve(false); } //Chiudo finestre, tengo gas e acqua aperti - dangerLevel 1
-  //else if(dangerLevel == 2){ actuate_Windows(false); actuate_GasValve(false); actuate_WaterValve(true); } //Chiudo finestre e gas, tengo acqua aperta - dangerLevel 2
-  else if(dangerLevel == 3){ actuate_Windows(false); actuate_GasValve(false); actuate_WaterValve(true); } //Chiudo tutto e mantengo l'acqua aperta - dangerLevel 3
+  else if(dangerLevel == 2){ actuate_Windows(false); actuate_GasValve(false); actuate_WaterValve(true); } //Chiudo finestre e gas, tengo acqua aperta - dangerLevel 2
 }
  
