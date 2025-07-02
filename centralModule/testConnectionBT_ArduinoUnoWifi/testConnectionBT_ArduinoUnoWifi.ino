@@ -16,6 +16,12 @@ const char* UuidCharacteristic = "19b10001-e8f2-537e-4f6c-d104768a1215";
 #define GAS_VALVE_FEEDBACK_PIN 2
 #define WATER_VALVE_FEEDBACK_PIN 3
 
+#define WINDOW_1_FEEDBACK_PIN_OUT 8
+#define WINDOW_2_FEEDBACK_PIN_OUT 11
+#define GAS_VALVE_FEEDBACK_PIN_OUT A0
+#define WATER_VALVE_FEEDBACK_PIN_OUT A1
+
+
 // ----------------------- VARIABLES ---------------------
 const int numero_server = 2;
 int DangerLevel = 0;
@@ -35,10 +41,20 @@ void setup() {
   pinMode(WINDOW_2_FEEDBACK_PIN, INPUT);
   pinMode(GAS_VALVE_FEEDBACK_PIN, INPUT);
   pinMode(WATER_VALVE_FEEDBACK_PIN, INPUT);
+
+  pinMode(WINDOW_1_FEEDBACK_PIN_OUT, OUTPUT);
+  pinMode(WINDOW_2_FEEDBACK_PIN_OUT, OUTPUT);
+  pinMode(GAS_VALVE_FEEDBACK_PIN_OUT, OUTPUT);
+  pinMode(WATER_VALVE_FEEDBACK_PIN_OUT, OUTPUT);
+
+  digitalWrite(WINDOW_1_FEEDBACK_PIN_OUT, HIGH); 
+  digitalWrite(WINDOW_2_FEEDBACK_PIN_OUT, HIGH);
+  digitalWrite(GAS_VALVE_FEEDBACK_PIN_OUT, HIGH);
+  digitalWrite(WATER_VALVE_FEEDBACK_PIN_OUT, LOW);
  
   digitalWrite(DANGER_PIN_1, LOW);
   digitalWrite(DANGER_PIN_2, LOW);
- 
+  
   bluetooth_setup();
 }
  
@@ -170,13 +186,12 @@ void handle_device(BLEDevice device, String nomedev){
       delay(100);
       get_danger_Level();
       danger_to_Central();
- 
-    } else {
+    } 
+    else {
       log_system_info("[ERROR] Lettura dei dati fallita.", nomedev);
     }
   }
 }
-
 
 //---------------- UTILITY FUNCTIONS ---------------------
 
@@ -275,14 +290,21 @@ void get_danger_Level()
       DangerLevel = string_to_int_danger;
       log_system_info("Nuovo livello di Danger: " + String(DangerLevel));
     }
+    else if(string_to_int_danger==4) {
+        digitalWrite(WINDOW_1_FEEDBACK_PIN_OUT, digitalRead(WINDOW_1_FEEDBACK_PIN)==LOW ? HIGH : LOW);
+        digitalWrite(WINDOW_2_FEEDBACK_PIN_OUT, digitalRead(WINDOW_2_FEEDBACK_PIN)==LOW ? HIGH : LOW); 
+        log_system_info("Attuazione sulle finestre: " + String(digitalRead(WINDOW_2_FEEDBACK_PIN)));
+      }
+      else if(string_to_int_danger==5) 
+        digitalWrite(GAS_VALVE_FEEDBACK_PIN_OUT, digitalRead(GAS_VALVE_FEEDBACK_PIN) == LOW ? HIGH : LOW);
+      else if(string_to_int_danger==6) 
+        digitalWrite(WATER_VALVE_FEEDBACK_PIN_OUT, digitalRead(WATER_VALVE_FEEDBACK_PIN) == LOW ? HIGH : LOW);
     else
       log_system_info("Il PC non ha inviato un danger level valido, DangerLevel non modificato");
  
   }
   else
     log_system_info("Il PC non ha comunicato nulla, DangerLevel non modificato.");
- 
- 
 }
  
 void danger_to_Central()
@@ -299,4 +321,3 @@ void danger_to_Central()
   else
     log_system_info("DangerLevel out of bounds, non comunico il nuovo livello al centrale");
 }
- 
