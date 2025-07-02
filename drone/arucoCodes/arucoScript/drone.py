@@ -35,41 +35,42 @@ model = YOLO(path_to_model)
 
 
 def __main__(arg):
-
-   ##RICERCA E RAGGIUNGIMENTO DELL'ARUCO
-   #numero_target = 1          #debug
-    numero_target = arg         #numero di cui fare la detection
-
-    print("Argomento ricevuto: ")
-
-    print(numero_target)
-
-    drone.connect()
-
-    print(f"Batteria: {drone.get_battery()}%")
-
-    time.sleep(5)
-
-    #cam = cv2.VideoCapture(0)
-
-    drone.streamon()    #attivo la telecamera
-
+   if(arg != 0):
+      ##RICERCA E RAGGIUNGIMENTO DELL'ARUCO
+      #numero_target = 1          #debug
+       numero_target = arg         #numero di cui fare la detection
+   
+       print("Argomento ricevuto: ")
+   
+       print(numero_target)
+   
+       drone.connect()
+   
+       print(f"Batteria: {drone.get_battery()}%")
+   
+       time.sleep(5)
+   
+       #cam = cv2.VideoCapture(0)
+   
+       drone.streamon()    #attivo la telecamera
+   
+       
+       drone.takeoff()     #alzo il drone in volo
+   
+       go_to_position(numero_target)
     
-    drone.takeoff()     #alzo il drone in volo
-
-    go_to_position(numero_target)
- 
-    #avvio il riconoscimento dell'immagine in multithreading
-    take_photo()    #faccio una foto con il drone
-    time.sleep(2)
-    thread = threading.Thread(target=yolo_model_testing)    #verifico la presenza dell'incendio in un test
-    thread.start()     #avvio il secondo processo 
-
-
-    go_home()   #torno a casa nel mentre
-
-    drone.streamoff()
-
+       #avvio il riconoscimento dell'immagine in multithreading
+       take_photo()    #faccio una foto con il drone
+       time.sleep(2)
+       thread = threading.Thread(target=yolo_model_testing)    #verifico la presenza dell'incendio in un test
+       thread.start()     #avvio il secondo processo 
+   
+   
+       go_home()   #torno a casa nel mentre
+   
+       drone.streamoff()
+   else:
+      print("Error in main: argument out of range 1-4")
 
 
 #---------------------------------------------------------------------------------------------- UTILS
@@ -311,5 +312,5 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         __main__(sys.argv[1])
     else:
-        __main__(None)  # o un valore di default
+        __main__(0)  # o un valore di default
  
