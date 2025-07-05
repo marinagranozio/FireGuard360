@@ -65,19 +65,18 @@ void log_system_info(String info, String nomeDevice = "Centrale"){
  
 void send_sensor_data(String info, String nomeDevice = ""){
   String json_data = make_data_json(info, nomeDevice);
-  Serial.println("DATA:" + json_data);
-}
-
-void send_actuation_status(){
-  // Controlla lo stato delle finestre e delle valvole
-  String actuation_json = make_actuation_json();
-  Serial.println("ACTUATION:" + actuation_json);
+  Serial.println(json_data);
 }
  
 // ----------------------- LOOP --------------------------
 void loop() {
+  
+  // Controllo immediato della seriale ad ogni ciclo
+  get_danger_Level();
+  danger_to_Central();
+
+  // Gestione BLE
   for(int i = 0; i < numero_server; i++){
- 
     if(server_device[i]){
       int maxtentativi = 5;
       int tentativi = 0;
@@ -86,25 +85,22 @@ void loop() {
       while(!connesso && tentativi < maxtentativi){
         if(server_device[i].connected()){
           connesso = true;
-        log_system_info("[OK] Connesso!", String(nome_device[i]));
-        handle_device(server_device[i], nome_device[i]);
-        delay(100);
-        log_system_info("[OK] Disconnect...", String(nome_device[i]));
-        log_system_info("---------------------------------");
-        delay(300);
-        server_device[i].disconnect();
+          log_system_info("[OK] Connesso!", String(nome_device[i]));
+          handle_device(server_device[i], nome_device[i]);
+          delay(100);
+          log_system_info("[OK] Disconnect...", String(nome_device[i]));
+          log_system_info("---------------------------------");
+          delay(300);
+          server_device[i].disconnect();
       }else{
-        log_system_info("Provo a connettermi a: " + String(nome_device[i]));
-        server_device[i].connect();
+          log_system_info("Provo a connettermi a: " + String(nome_device[i]));
+          server_device[i].connect();
       }
       tentativi++;
       }
 
       connesso = false;
- 
-      send_actuation_status();
-      delay(3000);
- 
+      delay(1000);
     }
   }  
 }
@@ -144,7 +140,6 @@ void bluetooth_setup(){
  
 void handle_device(BLEDevice device, String nomedev){
   if(device.connected()){
- 
     const int maxTentativi = 25;
     int tentativi = 0;
  
@@ -181,13 +176,10 @@ void handle_device(BLEDevice device, String nomedev){
       buffer[len] = '\0';
       log_system_info("[OK] Dati ottenuti: " + String(buffer), nomedev);
  
-      /*Avendo ottenuto i dati invio tutto al PC e recupero il nuovo DangerLevel*/
+      /*Avendo ottenuto i dati invio tutto al PC*/
       send_sensor_data(String(buffer), nomedev);
       delay(100);
-      get_danger_Level();
-      danger_to_Central();
-    } 
-    else {
+    }else {
       log_system_info("[ERROR] Lettura dei dati fallita.", nomedev);
     }
   }
@@ -195,129 +187,81 @@ void handle_device(BLEDevice device, String nomedev){
 
 //---------------- UTILITY FUNCTIONS ---------------------
 
-String make_actuation_json()
-{
-  // Crea un oggetto JSON
-  DynamicJsonDocument doc(1024);
- 
-  // Aggiungi i dati all'interno dell'oggetto "data"
-  JsonObject actuation = doc.createNestedObject("actuation");
- 
-  // Controlla lo stato delle finestre e delle valvole
-  bool window1_status = digitalRead(WINDOW_1_FEEDBACK_PIN);
-  bool window2_status = digitalRead(WINDOW_2_FEEDBACK_PIN);
-  bool gas_valve_status = digitalRead(GAS_VALVE_FEEDBACK_PIN);
-  bool water_valve_status = digitalRead(WATER_VALVE_FEEDBACK_PIN);
- 
-  actuation["window1"] = window1_status ? "open" : "closed";
-  actuation["window2"] = window2_status ? "open" : "closed";
-  actuation["gasValve"] = gas_valve_status ? "open" : "closed";
-  actuation["waterValve"] = water_valve_status ? "open" : "closed";
- 
-  // Converto l'oggetto JSON in una stringa
-  String output;
-  serializeJson(doc, output);
- 
-  return output;
-}
-
-String make_data_json(String inputString, String nomeDevice)
-{
-  // Estraiamo i valori dalla stringa
-  float t = 0.0;
-  float h = 0.0;
+String make_data_json(String inputString, String nomeDevice) {
+  // Inizializza i valori
+  float temperature = 0.0;
+  float humidity = 0.0;
   float gasLevel = 0.0;
   int dangerValue = 0;
 
-  //---------PARSING---------
-  // Prendo i valori numerici dopo ogni lettera
-  if (inputString.indexOf("T") != -1) {
-    t = inputString.substring(inputString.indexOf("T") + 1, inputString.indexOf("H")).toFloat();
-  }
-  if (inputString.indexOf("H") != -1) {
-    h = inputString.substring(inputString.indexOf("H") + 1, inputString.indexOf("G")).toFloat();
-  }
-  if (inputString.indexOf("G") != -1) {
-    gasLevel = inputString.substring(inputString.indexOf("G") + 1, inputString.indexOf("D")).toFloat() / 100.0; // Convertiamo il valore in percentuale
-  }
-  if (inputString.indexOf("D") != -1) {
-    dangerValue = inputString.substring(inputString.indexOf("D") + 1).toInt();
-  }
- 
-//----------CREO IL JSON----------
-// Crea un oggetto JSON
-  DynamicJsonDocument doc(1024);
- 
-  doc["token"] = token++;
-  // Aggiungi i dati all'interno dell'oggetto "data"
-  JsonObject data = doc.createNestedObject("data");
-  data["name"] = nomeDevice;
-  data["dangerValue"] = dangerValue;
-  data["temperature"] = t;
-  data["humidity"] = h;
-  data["gas"] = gasLevel;
- 
-  // Converto l'oggetto JSON in una stringa
+  // Estrazione delle posizioni delle lettere chiave
+  int tIndex = inputString.indexOf("T");
+  int hIndex = inputString.indexOf("H");
+  int gIndex = inputString.indexOf("G");
+  int dIndex = inputString.indexOf("D");
+
+  // Parsing dei valori se gli indici sono validi
+  if (tIndex != -1 && hIndex != -1) { temperature = inputString.substring(tIndex + 1, hIndex).toFloat(); }
+  if (hIndex != -1 && gIndex != -1) { humidity = inputString.substring(hIndex + 1, gIndex).toFloat(); }
+  if (gIndex != -1 && dIndex != -1) { gasLevel = inputString.substring(gIndex + 1, dIndex).toFloat(); }
+  if (dIndex != -1) { dangerValue = inputString.substring(dIndex + 1).toInt(); }
+
+  // Crea il JSON
+  DynamicJsonDocument doc(256);
+  doc["temperature"] = temperature;
+  doc["humidity"] = humidity;
+  doc["gas"] = gasLevel;
+  doc["sensor_id"] = nomeDevice;
+  doc["danger_value"] = dangerValue;
+
+  // Serializza in stringa
   String output;
   serializeJson(doc, output);
- 
   return output;
- 
-//{
-  //"token": "<token_generated>",
-  //"data" :
-  //  {
-  //    "id": number,
-  //    "name": string,
-  //    "dangerValue": number,
-  //    "temperature": number,
-  //    "humidity": number,
-  //    "gas": number,
-  //  }
-//}
 }
 
+void get_danger_Level() {
+  if (Serial.available() > 0) {
+    String dangerStr = Serial.readStringUntil('D');
+    log_system_info("Ricevuto dal PC livello di Danger: " + dangerStr);
 
-void get_danger_Level()
-{
-  //Recupera dal seriale del PC il livello di Danger
-  if(Serial.available()>0){
-    String DangerLevelString = Serial.readStringUntil('D');
-    log_system_info("Ricevuto dal PC livello di Danger: " + DangerLevelString);
-    int string_to_int_danger = DangerLevelString.toInt();
- 
-    if(string_to_int_danger < 4 && string_to_int_danger >= 0){
-      DangerLevel = string_to_int_danger;
+    int receivedLevel = dangerStr.toInt();
+
+    if (receivedLevel >= 0 && receivedLevel < 4) {
+      DangerLevel = receivedLevel;
       log_system_info("Nuovo livello di Danger: " + String(DangerLevel));
     }
-    else if(string_to_int_danger==4) {
-        digitalWrite(WINDOW_1_FEEDBACK_PIN_OUT, digitalRead(WINDOW_1_FEEDBACK_PIN)==LOW ? HIGH : LOW);
-        digitalWrite(WINDOW_2_FEEDBACK_PIN_OUT, digitalRead(WINDOW_2_FEEDBACK_PIN)==LOW ? HIGH : LOW); 
-        log_system_info("Attuazione sulle finestre: " + String(digitalRead(WINDOW_2_FEEDBACK_PIN)));
-      }
-      else if(string_to_int_danger==5) 
-        digitalWrite(GAS_VALVE_FEEDBACK_PIN_OUT, digitalRead(GAS_VALVE_FEEDBACK_PIN) == LOW ? HIGH : LOW);
-      else if(string_to_int_danger==6) 
-        digitalWrite(WATER_VALVE_FEEDBACK_PIN_OUT, digitalRead(WATER_VALVE_FEEDBACK_PIN) == LOW ? HIGH : LOW);
-    else
-      log_system_info("Il PC non ha inviato un danger level valido, DangerLevel non modificato");
- 
-  }
-  else
+    else if (receivedLevel == 4) {
+      bool window1 = digitalRead(WINDOW_1_FEEDBACK_PIN);
+      bool window2 = digitalRead(WINDOW_2_FEEDBACK_PIN);
+      digitalWrite(WINDOW_1_FEEDBACK_PIN_OUT, window1 == LOW ? HIGH : LOW);
+      digitalWrite(WINDOW_2_FEEDBACK_PIN_OUT, window2 == LOW ? HIGH : LOW);
+      log_system_info("Attuazione sulle finestre: " + String(digitalRead(WINDOW_2_FEEDBACK_PIN)));
+    }
+    else if (receivedLevel == 5) {
+      bool gasValve = digitalRead(GAS_VALVE_FEEDBACK_PIN);
+      digitalWrite(GAS_VALVE_FEEDBACK_PIN_OUT, gasValve == LOW ? HIGH : LOW);
+    }
+    else if (receivedLevel == 6) {
+      bool waterValve = digitalRead(WATER_VALVE_FEEDBACK_PIN);
+      digitalWrite(WATER_VALVE_FEEDBACK_PIN_OUT, waterValve == LOW ? HIGH : LOW);
+    }
+    else {
+      log_system_info("Il PC ha inviato un danger level non valido, DangerLevel non modificato");
+    }
+  } else {
     log_system_info("Il PC non ha comunicato nulla, DangerLevel non modificato.");
-}
- 
-void danger_to_Central()
-{
-  //UTILIZZA I PIN 5 e 4 per inviare il danger level binario
-  if(DangerLevel < 4 && DangerLevel >= 0)
-  {
-    if(DangerLevel == 0){ digitalWrite(DANGER_PIN_1, LOW); digitalWrite(DANGER_PIN_2, LOW); }
-    else if(DangerLevel == 1){digitalWrite(DANGER_PIN_1, LOW); digitalWrite(DANGER_PIN_2, HIGH);}
-    else if(DangerLevel == 2){digitalWrite(DANGER_PIN_1, HIGH); digitalWrite(DANGER_PIN_2, LOW);}
-    else if(DangerLevel == 3){digitalWrite(DANGER_PIN_1, HIGH); digitalWrite(DANGER_PIN_2, HIGH);}
-    log_system_info("Comunico al centrale il livello di pericolo: " + String(DangerLevel));
   }
-  else
+}
+
+void danger_to_Central() {
+  // PIN 5 e 4 per inviare il danger level binario
+  if (DangerLevel >= 0 && DangerLevel < 4) {
+    digitalWrite(DANGER_PIN_1, (DangerLevel & 0b10) ? HIGH : LOW);
+    digitalWrite(DANGER_PIN_2, (DangerLevel & 0b01) ? HIGH : LOW);
+
+    log_system_info("Comunico al centrale il livello di pericolo: " + String(DangerLevel));
+  } else {
     log_system_info("DangerLevel out of bounds, non comunico il nuovo livello al centrale");
+  }
 }
