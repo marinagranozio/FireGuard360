@@ -29,6 +29,10 @@ long int token = 0;
  
 BLEDevice server_device[numero_server];
 BLEDevice server_corrente;
+
+bool toggle_state_windows = false;
+bool toggle_state_gas = false;
+bool toggle_state_water = false;
  
 // ----------------------- SETUP -------------------------
 void setup() {
@@ -47,9 +51,9 @@ void setup() {
   pinMode(GAS_VALVE_FEEDBACK_PIN_OUT, OUTPUT);
   pinMode(WATER_VALVE_FEEDBACK_PIN_OUT, OUTPUT);
 
-  digitalWrite(WINDOW_1_FEEDBACK_PIN_OUT, HIGH); 
-  digitalWrite(WINDOW_2_FEEDBACK_PIN_OUT, HIGH);
-  digitalWrite(GAS_VALVE_FEEDBACK_PIN_OUT, HIGH);
+  digitalWrite(WINDOW_1_FEEDBACK_PIN_OUT, LOW); 
+  digitalWrite(WINDOW_2_FEEDBACK_PIN_OUT, LOW);
+  digitalWrite(GAS_VALVE_FEEDBACK_PIN_OUT, LOW);
   digitalWrite(WATER_VALVE_FEEDBACK_PIN_OUT, LOW);
  
   digitalWrite(DANGER_PIN_1, LOW);
@@ -70,10 +74,6 @@ void send_sensor_data(String info, String nomeDevice = ""){
  
 // ----------------------- LOOP --------------------------
 void loop() {
-  
-  // Controllo immediato della seriale ad ogni ciclo
-  get_danger_Level();
-  danger_to_Central();
 
   // Gestione BLE
   for(int i = 0; i < numero_server; i++){
@@ -88,19 +88,25 @@ void loop() {
           log_system_info("[OK] Connesso!", String(nome_device[i]));
           handle_device(server_device[i], nome_device[i]);
           delay(100);
-          log_system_info("[OK] Disconnect...", String(nome_device[i]));
+          //log_system_info("[OK] Disconnect...", String(nome_device[i]));
           log_system_info("---------------------------------");
           delay(300);
           server_device[i].disconnect();
-      }else{
-          log_system_info("Provo a connettermi a: " + String(nome_device[i]));
-          server_device[i].connect();
-      }
-      tentativi++;
+        }else{
+            //log_system_info(String(nome_device[i]));
+            server_device[i].connect();
+        }
+        tentativi++;
       }
 
+      get_danger_Level();
+      danger_to_Central();
+
       connesso = false;
-      delay(1000);
+      delay(500);
+    } else {
+      get_danger_Level();
+      danger_to_Central();
     }
   }  
 }
@@ -167,14 +173,14 @@ void handle_device(BLEDevice device, String nomedev){
       return;
     }
  
-    log_system_info("[OK] Servizio e caratteristica trovati!", nomedev);
+    //log_system_info("[OK] Servizio e caratteristica trovati!", nomedev);
  
     char buffer[51];
     int len = caratteristica.readValue(buffer, sizeof(buffer) - 1);
-    log_system_info("[INFO] lunghezza: " + String(len), nomedev);
+    //log_system_info("[INFO] lunghezza: " + String(len), nomedev);
     if (len > 0) {
       buffer[len] = '\0';
-      log_system_info("[OK] Dati ottenuti: " + String(buffer), nomedev);
+      //log_system_info("[OK] Dati ottenuti: " + String(buffer), nomedev);
  
       /*Avendo ottenuto i dati invio tutto al PC*/
       send_sensor_data(String(buffer), nomedev);
@@ -222,45 +228,59 @@ String make_data_json(String inputString, String nomeDevice) {
 
 void get_danger_Level() {
   if (Serial.available() > 0) {
-    String dangerStr = Serial.readStringUntil('D');
-    log_system_info("Ricevuto dal PC livello di Danger: " + dangerStr);
+    String rawInput = Serial.readStringUntil('\n'); // Legge l'intera riga, inclusi "54D", "1D", ecc.
+    rawInput.trim(); // Rimuove spazi bianchi e \r
 
-    int receivedLevel = dangerStr.toInt();
+    log_system_info("Ricevuto dal PC: " + rawInput);
 
-    if (receivedLevel >= 0 && receivedLevel < 4) {
-      DangerLevel = receivedLevel;
-      log_system_info("Nuovo livello di Danger: " + String(DangerLevel));
+    // Verifica che finisca in 'D' (es. "0D", "5D" ecc.)
+    if (rawInput.endsWith("D") && rawInput.length() >= 2) {
+      String numPart = rawInput.substring(0, rawInput.length() - 1);  // estrae "5" da "5D"
+      int receivedLevel = numPart.toInt();
+
+      log_system_info("Interpretato DangerLevel: " + String(receivedLevel));
+
+      if (receivedLevel >= 0 && receivedLevel < 4) {
+        DangerLevel = receivedLevel;
+        log_system_info("✅ Nuovo livello di Danger: " + String(DangerLevel));
+      }
+      if (receivedLevel == 4) {
+        DangerLevel = 3;
+        toggle_feedback_pulse(WINDOW_1_FEEDBACK_PIN_OUT, WINDOW_1_FEEDBACK_PIN, toggle_state_windows, "FINESTRE");
+        toggle_feedback_pulse(WINDOW_2_FEEDBACK_PIN_OUT, WINDOW_2_FEEDBACK_PIN, toggle_state_windows, "FINESTRE");
+      }
+      else if (receivedLevel == 5) {
+        DangerLevel = 3;
+        toggle_feedback_pulse(GAS_VALVE_FEEDBACK_PIN_OUT, GAS_VALVE_FEEDBACK_PIN, toggle_state_gas, "GAS");
+      }
+      else if (receivedLevel == 6) {
+        DangerLevel = 3;
+        toggle_feedback_pulse(WATER_VALVE_FEEDBACK_PIN_OUT, WATER_VALVE_FEEDBACK_PIN, toggle_state_water, "ACQUA");
+      }
+    } else {
+      log_system_info("⚠️ Formato ricevuto non valido o assente 'D'");
     }
-    else if (receivedLevel == 4) {
-      bool window1 = digitalRead(WINDOW_1_FEEDBACK_PIN);
-      bool window2 = digitalRead(WINDOW_2_FEEDBACK_PIN);
-      digitalWrite(WINDOW_1_FEEDBACK_PIN_OUT, window1 == LOW ? HIGH : LOW);
-      digitalWrite(WINDOW_2_FEEDBACK_PIN_OUT, window2 == LOW ? HIGH : LOW);
-      log_system_info("Attuazione sulle finestre: " + String(digitalRead(WINDOW_2_FEEDBACK_PIN)));
-    }
-    else if (receivedLevel == 5) {
-      bool gasValve = digitalRead(GAS_VALVE_FEEDBACK_PIN);
-      digitalWrite(GAS_VALVE_FEEDBACK_PIN_OUT, gasValve == LOW ? HIGH : LOW);
-    }
-    else if (receivedLevel == 6) {
-      bool waterValve = digitalRead(WATER_VALVE_FEEDBACK_PIN);
-      digitalWrite(WATER_VALVE_FEEDBACK_PIN_OUT, waterValve == LOW ? HIGH : LOW);
-    }
-    else {
-      log_system_info("Il PC ha inviato un danger level non valido, DangerLevel non modificato");
-    }
-  } else {
-    log_system_info("Il PC non ha comunicato nulla, DangerLevel non modificato.");
   }
+}
+
+void toggle_feedback_pulse(int outPin, int readPin, bool& toggle_state, String label) {
+  toggle_state = !toggle_state;
+
+  digitalWrite(outPin, LOW);
+  delay(10);
+
+  digitalWrite(outPin, HIGH);
+  delay(200);
+  digitalWrite(outPin, LOW);
 }
 
 void danger_to_Central() {
   // PIN 5 e 4 per inviare il danger level binario
-  if (DangerLevel >= 0 && DangerLevel < 4) {
+  if (DangerLevel >= 0 && DangerLevel <= 3) {
     digitalWrite(DANGER_PIN_1, (DangerLevel & 0b10) ? HIGH : LOW);
     digitalWrite(DANGER_PIN_2, (DangerLevel & 0b01) ? HIGH : LOW);
 
-    log_system_info("Comunico al centrale il livello di pericolo: " + String(DangerLevel));
+    log_system_info("To central: " + String(DangerLevel));
   } else {
     log_system_info("DangerLevel out of bounds, non comunico il nuovo livello al centrale");
   }

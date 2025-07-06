@@ -1,6 +1,6 @@
 #include <Servo.h>
 
-// --------- COSTANTI -----------------
+// --------- PIN DEFINITI -----------------
 #define PIN_DANGER_A 4
 #define PIN_DANGER_B 5
 
@@ -14,28 +14,35 @@
 #define GAS_VALVE_FEEDBACK_PIN_IN A0
 #define WATER_VALVE_FEEDBACK_PIN_IN A1
 
-#define RELAY_WATERVALVE 13
-#define RELAY_GASVALVE 12
+#define RELAY_WATERVALVE 12
+#define RELAY_GASVALVE 13
+
+#define SERVO_1_PIN 9
+#define SERVO_2_PIN 10
 
 // --------- OGGETTI E VARIABILI -------
 Servo myservo1;
 Servo myservo2;
 
-int dangerLevel = -1;             // valore attuale
-int lastStableLevel = -1;         // ultimo livello confermato
-int stableCount = 0;              // contatore di conferme stabili
-const int requiredStability = 3;  // letture consecutive richieste
+int dangerLevel = -1;
+int lastStableLevel = -1;
+int stableCount = 0;
+const int requiredStability = 3;
 
-bool windows_open = true;
-bool gas_valve_open = true;
+bool windows_open = false;
+bool gas_valve_open = false;
 bool water_valve_open = false;
 
 // ---------- SETUP --------------------
 void setup() {
   Serial.begin(9600);
 
-  myservo1.attach(9); myservo2.attach(10);
-  myservo1.write(180); myservo2.write(180);
+  myservo1.attach(SERVO_1_PIN);
+  myservo2.attach(SERVO_2_PIN);
+
+  myservo1.write(90);  // finestre chiuse
+  myservo2.write(90);
+  delay(1000);
 
   pinMode(RELAY_WATERVALVE, OUTPUT);
   pinMode(RELAY_GASVALVE, OUTPUT);
@@ -54,7 +61,7 @@ void setup() {
   pinMode(WATER_VALVE_FEEDBACK_PIN, OUTPUT);
 
   init_actuators();
-  Serial.println("Sistema inizializzato. In attesa di DangerLevel stabile...");
+  Serial.println("✅ Sistema inizializzato. In attesa di DangerLevel stabile...");
 }
 
 // ---------- LOOP ---------------------
@@ -70,61 +77,71 @@ void loop() {
 
   if (stableCount >= requiredStability && currentLevel != dangerLevel) {
     dangerLevel = currentLevel;
-    Serial.println("🟡 Nuovo DangerLevel STABILE rilevato: " + String(dangerLevel));
+    Serial.println("\n🟡 Nuovo DangerLevel STABILE rilevato: " + String(dangerLevel));
     esegui_attuazione(dangerLevel);
   }
 
-  // Se livello di sicurezza, verifica feedback ogni ciclo
-  if (dangerLevel == 0) {
-    monitor_feedback();
-  }
-
-  delay(500);
+  monitor_feedback(); // Sempre attiva, legge comandi 4D, 5D, 6D
+  delay(20);
 }
 
 // ---------- FUNZIONI ------------------
 
-// Inizializza tutti gli attuatori in stato sicuro all'avvio
 void init_actuators() {
-  windows_open = true;
-  gas_valve_open = true;
+  windows_open = false;
+  gas_valve_open = false;
   water_valve_open = false;
 
+  digitalWrite(RELAY_GASVALVE, LOW);
   digitalWrite(RELAY_WATERVALVE, LOW);
-  digitalWrite(RELAY_GASVALVE, HIGH);
 
-  digitalWrite(WINDOW_1_FEEDBACK_PIN, HIGH);
-  digitalWrite(WINDOW_2_FEEDBACK_PIN, HIGH);
-  digitalWrite(GAS_VALVE_FEEDBACK_PIN, HIGH);
+  digitalWrite(WINDOW_1_FEEDBACK_PIN, LOW);
+  digitalWrite(WINDOW_2_FEEDBACK_PIN, LOW);
+  digitalWrite(GAS_VALVE_FEEDBACK_PIN, LOW);
   digitalWrite(WATER_VALVE_FEEDBACK_PIN, LOW);
 }
 
-// Legge i due bit di input per determinare il dangerLevel
 int getDangerValue() {
-  int a = digitalRead(PIN_DANGER_A);
-  int b = digitalRead(PIN_DANGER_B);
-  return (a << 1) | b; // a*2 + b*1
+  int b = digitalRead(PIN_DANGER_A);
+  int a = digitalRead(PIN_DANGER_B);
+  return (a << 1) | b;
 }
 
-// Controlla feedback da sensori e riapplica attuazione se serve
 void monitor_feedback() {
-  bool f1 = digitalRead(WINDOW_1_FEEDBACK_PIN_IN);
-  bool f2 = digitalRead(WINDOW_2_FEEDBACK_PIN_IN);
-  bool gas = digitalRead(GAS_VALVE_FEEDBACK_PIN_IN);
-  bool water = digitalRead(WATER_VALVE_FEEDBACK_PIN_IN);
+  static bool prev_window_state = LOW;
+  static bool prev_gas_state = LOW;
+  static bool prev_water_state = LOW;
 
-  if (f1 != windows_open || f2 != windows_open) actuate_Windows(f1);
-  if (gas != gas_valve_open) actuate_GasValve(gas);
-  if (water != water_valve_open) actuate_WaterValve(water);
+  bool window_signal = digitalRead(WINDOW_1_FEEDBACK_PIN_IN);
+  bool gas_signal = digitalRead(GAS_VALVE_FEEDBACK_PIN_IN);
+  bool water_signal = digitalRead(WATER_VALVE_FEEDBACK_PIN_IN);
+
+  if (window_signal == HIGH && prev_window_state == LOW) {
+    Serial.println("🔁 Feedback FINESTRE ricevuto → toggle");
+    actuate_Windows(!windows_open);
+  }
+
+  if (gas_signal == HIGH && prev_gas_state == LOW) {
+    Serial.println("🔁 Feedback GAS ricevuto → toggle");
+    actuate_GasValve(!gas_valve_open);
+  }
+
+  if (water_signal == HIGH && prev_water_state == LOW) {
+    Serial.println("🔁 Feedback ACQUA ricevuto → toggle");
+    actuate_WaterValve(!water_valve_open);
+  }
+
+  prev_window_state = window_signal;
+  prev_gas_state = gas_signal;
+  prev_water_state = water_signal;
 }
 
-// Gestisce le attuazioni principali in base al livello
 void esegui_attuazione(int level) {
   switch (level) {
     case 0:
-      actuate_Windows(true);
-      actuate_GasValve(true);
-      actuate_WaterValve(false);
+      actuate_Windows(true);      // finestre aperte
+      actuate_GasValve(true);     // gas aperto
+      actuate_WaterValve(false);  // acqua chiusa
       break;
     case 1:
       actuate_Windows(false);
@@ -136,8 +153,11 @@ void esegui_attuazione(int level) {
       actuate_GasValve(false);
       actuate_WaterValve(true);
       break;
+    case 3:
+      Serial.println("📟 Modalità comandi manuali attiva");
+      break;
     default:
-      Serial.println("DangerLevel non gestito: " + String(level));
+      Serial.println("⚠️ DangerLevel non gestito: " + String(level));
       break;
   }
 }
@@ -148,7 +168,7 @@ void actuate_Windows(bool open) {
   if (open == windows_open) return;
 
   Serial.println(open ? "🪟 Apro finestre..." : "🪟 Chiudo finestre...");
-  for (int pos = open ? 0 : 90; open ? pos <= 90 : pos >= 0; pos += open ? 1 : -1) {
+  for (int pos = (open ? 90 : 0); (open ? pos >= 0 : pos <= 90); pos += (open ? -1 : 1)) {
     myservo1.write(pos);
     myservo2.write(pos);
     delay(10);
