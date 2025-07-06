@@ -228,12 +228,11 @@ String make_data_json(String inputString, String nomeDevice) {
 
 void get_danger_Level() {
   if (Serial.available() > 0) {
-    String rawInput = Serial.readStringUntil('\n'); // Legge l'intera riga, inclusi "54D", "1D", ecc.
+    String rawInput = Serial.readStringUntil('\n');
     rawInput.trim(); // Rimuove spazi bianchi e \r
 
     log_system_info("Ricevuto dal PC: " + rawInput);
 
-    // Verifica che finisca in 'D' (es. "0D", "5D" ecc.)
     if (rawInput.endsWith("D") && rawInput.length() >= 2) {
       String numPart = rawInput.substring(0, rawInput.length() - 1);  // estrae "5" da "5D"
       int receivedLevel = numPart.toInt();
