@@ -13,4 +13,4 @@ https://github.com/osvaldomar144/dashboard_FireGuard360
        controls muted playsinline width="720"
        poster="assets/preview.jpg"></video>
 
-<p><a href="assets/demo.mp4">Guarda la demo (MP4, ~19 MB)</a></p>
+<p><a href="assets/demo_FG360.mp4">Guarda la demo (MP4, ~19 MB)</a></p>
